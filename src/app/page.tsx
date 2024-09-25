@@ -1,101 +1,113 @@
-import Image from "next/image";
+"use client"
 
-export default function Home() {
+// pages/index.tsx (updated)
+import React, { useState, useEffect, useCallback } from 'react';
+import Head from 'next/head';
+import MIDITrack from './components/MIDITrack';
+import WaveVisualization from './components/WaveVisualization';
+import { Midi } from '@tonejs/midi';
+
+const Home: React.FC = () => {
+  const [tracks, setTracks] = useState<any[]>([]);
+  const [midiFile, setMidiFile] = useState<Midi | null>(null);
+
+  useEffect(() => {
+    // Initialize with an empty track
+    setTracks([{ id: 0, notes: [] }]);
+  }, []);
+
+  const addTrack = () => {
+    setTracks([...tracks, { id: tracks.length, notes: [] }]);
+  };
+
+  const updateTrack = (id: number, notes: any[]) => {
+    const updatedTracks = tracks.map(track => 
+      track.id === id ? { ...track, notes } : track
+    );
+    setTracks(updatedTracks);
+  };
+
+  const exportMIDI = () => {
+    const midi = new Midi();
+    tracks.forEach(track => {
+      const midiTrack = midi.addTrack();
+      track.notes.forEach((note: any) => {
+        midiTrack.addNote({
+          midi: note.midi,
+          time: note.time,
+          duration: note.duration,
+        });
+      });
+    });
+    setMidiFile(midi); // Update midiFile state for visualization
+    const midiBlob = new Blob([midi.toArray()], { type: 'audio/midi' });
+    const url = URL.createObjectURL(midiBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'export.mid';
+    a.click();
+  };
+
+  const handleFileUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e: ProgressEvent<FileReader>) => {
+        const midi = new Midi(e.target?.result as ArrayBuffer);
+        setMidiFile(midi);
+        // Update tracks based on the MIDI file
+        const newTracks = midi.tracks.map((track, index) => ({
+          id: index,
+          notes: track.notes
+        }));
+        setTracks(newTracks);
+      };
+      reader.readAsArrayBuffer(file);
+    }
+  }, []);
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+    <div className="min-h-screen p-4 flex flex-col items-center">
+      <Head>
+        <title>MIDI Editor</title>
+        <meta name="description" content="Basic MIDI Editor" />
+        <link rel="icon" href="/favicon.ico" />
+      </Head>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+      <main className="flex-1 flex flex-col items-center w-full max-w-4xl">
+        <h1 className="text-4xl font-bold mb-8">MIDI Editor</h1>
+        <div className="mb-4 space-x-4">
+          <button 
+            onClick={addTrack}
+            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
           >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            Add Track
+          </button>
+          <button 
+            onClick={exportMIDI}
+            className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
           >
-            Read our docs
-          </a>
+            Export MIDI
+          </button>
+          <input
+            type="file"
+            accept=".mid,.midi"
+            onChange={handleFileUpload}
+            className="file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100"
+          />
         </div>
+        <WaveVisualization midiFile={midiFile} />
+        {tracks.map(track => (
+          <MIDITrack 
+            key={track.id} 
+            id={track.id} 
+            notes={track.notes} 
+            updateTrack={updateTrack} 
+          />
+        ))}
       </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
     </div>
   );
-}
+};
+
+export default Home;
