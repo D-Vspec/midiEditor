@@ -1,108 +1,89 @@
 "use client"
-
-// pages/index.tsx (updated)
 import React, { useState, useEffect, useCallback } from 'react';
 import Head from 'next/head';
-import MIDITrack from './components/MIDITrack';
+import MP3Track from './components/MP3Track';
 import WaveVisualization from './components/WaveVisualization';
-import { Midi } from '@tonejs/midi';
+import { AudioContext } from 'standardized-audio-context';
 
 const Home: React.FC = () => {
   const [tracks, setTracks] = useState<any[]>([]);
-  const [midiFile, setMidiFile] = useState<Midi | null>(null);
+  const [audioContext] = useState(new AudioContext());
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   useEffect(() => {
-    // Initialize with an empty track
-    setTracks([{ id: 0, notes: [] }]);
+    setTracks([{ id: 0, audioBuffer: null }]);
   }, []);
 
   const addTrack = () => {
-    setTracks([...tracks, { id: tracks.length, notes: [] }]);
+    setTracks([...tracks, { id: tracks.length, audioBuffer: null }]);
   };
 
-  const updateTrack = (id: number, notes: any[]) => {
-    const updatedTracks = tracks.map(track => 
-      track.id === id ? { ...track, notes } : track
+  const updateTrack = (id: number, audioBuffer: AudioBuffer) => {
+    const updatedTracks = tracks.map(track =>
+      track.id === id ? { ...track, audioBuffer } : track
     );
     setTracks(updatedTracks);
   };
 
-  const exportMIDI = () => {
-    const midi = new Midi();
-    tracks.forEach(track => {
-      const midiTrack = midi.addTrack();
-      track.notes.forEach((note: any) => {
-        midiTrack.addNote({
-          midi: note.midi,
-          time: note.time,
-          duration: note.duration,
-        });
-      });
-    });
-    setMidiFile(midi); // Update midiFile state for visualization
-    const midiBlob = new Blob([midi.toArray()], { type: 'audio/midi' });
-    const url = URL.createObjectURL(midiBlob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'export.mid';
-    a.click();
-  };
-
-  const handleFileUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (e: ProgressEvent<FileReader>) => {
-        const midi = new Midi(e.target?.result as ArrayBuffer);
-        setMidiFile(midi);
-        // Update tracks based on the MIDI file
-        const newTracks = midi.tracks.map((track, index) => ({
-          id: index,
-          notes: track.notes
-        }));
-        setTracks(newTracks);
-      };
-      reader.readAsArrayBuffer(file);
+      setSelectedFile(file);
+      const arrayBuffer = await file.arrayBuffer();
+      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+      setTracks([{ id: 0, audioBuffer }]);
     }
-  }, []);
+  }, [audioContext]);
+
+  const exportMP3 = () => {
+    // Implement logic to export the modified MP3 (e.g., using ffmpeg.js or Web Audio API)
+  };
 
   return (
     <div className="min-h-screen p-4 flex flex-col items-center">
       <Head>
-        <title>MIDI Editor</title>
-        <meta name="description" content="Basic MIDI Editor" />
+        <title>MP3 Editor</title>
+        <meta name="description" content="Basic MP3 Editor" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
       <main className="flex-1 flex flex-col items-center w-full max-w-4xl">
-        <h1 className="text-4xl font-bold mb-8">MIDI Editor</h1>
+        <h1 className="text-4xl font-bold mb-8">MP3 Editor</h1>
+        
         <div className="mb-4 space-x-4">
-          <button 
+          <button
             onClick={addTrack}
             className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
           >
             Add Track
           </button>
-          <button 
-            onClick={exportMIDI}
+          <button
+            onClick={exportMP3}
             className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
           >
-            Export MIDI
+            Export MP3
           </button>
           <input
             type="file"
-            accept=".mid,.midi"
+            accept=".mp3"
             onChange={handleFileUpload}
             className="file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100"
           />
         </div>
-        <WaveVisualization midiFile={midiFile} />
+
+        {selectedFile && (
+          <div className="w-full mb-8">
+            <h2 className="text-2xl font-semibold mb-4">Waveform Visualization</h2>
+            <WaveVisualization audioFile={selectedFile} />
+          </div>
+        )}
+
         {tracks.map(track => (
-          <MIDITrack 
-            key={track.id} 
-            id={track.id} 
-            notes={track.notes} 
-            updateTrack={updateTrack} 
+          <MP3Track
+            key={track.id}
+            id={track.id}
+            audioBuffer={track.audioBuffer}
+            updateTrack={updateTrack}
           />
         ))}
       </main>
